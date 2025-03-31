@@ -15,16 +15,17 @@ const db = mysql.createPool({
   user: "youruser",
   password: "yourpassword",
   database: "flexilearn",
-  connectionLimit: 10, // Allow multiple connections
+  connectionLimit: 100, // Allow multiple connections
 });
 
 const sellerDb = mysql.createPool({
   host: "localhost",
   user: "youruser",
   password: "yourpassword",
-  database: "seller_db",  // Use the correct seller database
+  database: "seller_db", // Use the correct seller database
   connectionLimit: 10,
 });
+
 // Check Database Connection
 db.getConnection((err, connection) => {
   if (err) {
@@ -39,7 +40,7 @@ db.getConnection((err, connection) => {
 app.post("/api/signup", (req, res) => {
   console.log("Signup request received:", req.body); // Debugging
 
-  const { name, email, password } = req.body;F
+  const { name, email, password } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ message: "All fields are required." });
@@ -64,6 +65,62 @@ app.post("/api/signup", (req, res) => {
         return res.status(500).json({ message: "Internal Server Error" });
       }
       res.status(201).json({ message: "User registered successfully!" });
+    });
+  });
+});
+
+// **Contact Form Submission Route**
+app.post("/api/contact", (req, res) => {
+  console.log("Raw request body received:", req.body);
+
+  const { fullName, email, phone, subject, message } = req.body; // Expect fullName
+
+  if (!fullName || !email || !message) {
+    console.log("Missing required fields:", { fullName, email, message });
+    return res.status(400).json({ message: "Full Name, Email, and Message are required." });
+  }
+
+  console.log("Inserting into database...");
+  const sql = "INSERT INTO contact_messages (full_name, email, phone, subject, message) VALUES (?, ?, ?, ?, ?)";
+
+  db.query(sql, [fullName, email, phone, subject, message], (err, result) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
+
+    console.log("Message inserted successfully:", result);
+    res.status(201).json({ message: "Message sent successfully!" });
+  });
+});
+
+// **Subscribe Email Route**
+
+app.post("/api/subscribe", (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required." });
+  }
+
+  const checkEmailSql = "SELECT * FROM subscribers WHERE email = ?";
+  db.query(checkEmailSql, [email], (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
+
+    if (results.length > 0) {
+      return res.status(400).json({ message: "You are already subscribed." });
+    }
+
+    const insertEmailSql = "INSERT INTO subscribers (email) VALUES (?)";
+    db.query(insertEmailSql, [email], (err, result) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.status(500).json({ message: "Subscription failed." });
+      }
+      res.status(201).json({ message: "Subscription successful!" });
     });
   });
 });
@@ -97,6 +154,7 @@ app.post("/api/login", (req, res) => {
     res.status(200).json({ message: "Login successful", user });
   });
 });
+
 // **Seller Registration Route**
 app.post("/api/seller/register", (req, res) => {
   console.log("Seller registration request received:", req.body); // Debugging
@@ -147,7 +205,6 @@ app.post("/api/seller/register", (req, res) => {
     );
   });
 });
-
 
 // Start the server
 const PORT = process.env.PORT || 5001;
